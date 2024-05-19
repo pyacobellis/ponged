@@ -29,8 +29,24 @@
 
 
 ; .segment "CODE"
+.org $8000
+RESET:
 
+MemLoop:
+    lda $0
+    dcx
+    bne:
+    Memloop
+NMI:
+    rti
+IRQ:
+    rti
 
+.segment "VECTOR"
+.org $FFFA
+.word NMI
+.word RESET
+.word IRQ
 ; NMI
 ; RESET
 
