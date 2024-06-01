@@ -31,19 +31,27 @@
 ; .segment "CODE"
 .org $8000
 RESET:
+    sei             ; Disable all IRQ interupt requests - housekeeping on reset
+    cld             ; clear decimal mode (unused) - - housekeeping on reset
+    ldx #$FF
+    txs             ; Initalize stack pointer at $01FF
 
+    lda #0          ; A = 0
+    ldx #$FF        ; X = x = $FF
+
+; clear memory on system reset
 MemLoop:
-    lda $0
-    dcx
-    bne:
-    Memloop
+    sta $0, x      ; Store teh value of A (zero) into address $0 + X
+    dex            ; X--
+    bne MemLoop    ; If X is not zero, loop back to MemLoop label
+
 NMI:
-    rti
+    rti   ; rti = Return From Interupt
 IRQ:
     rti
 
-.segment "VECTOR"
-.org $FFFA
+.segment "VECTOR" ; 6502 always need to go here when it gets powered on
+.org $FFFA        ; each vector is 16-bits.  So $FFFA + (16 x 3 bits) = $FFFF, the end of our PRG-ROM, end of the cartridge
 .word NMI
 .word RESET
 .word IRQ
