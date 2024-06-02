@@ -28,7 +28,7 @@
 .byte $00, $00, $00, $00, $00 ; unused padding to fill 16 bytes of data
 
 
-; .segment "CODE"
+.segment "CODE"
 .org $8000
 RESET:
     sei             ; Disable all IRQ interupt requests - housekeeping on reset
@@ -37,7 +37,7 @@ RESET:
     txs             ; Initalize stack pointer at $01FF
 
     lda #0          ; A = 0
-    ldx #$FF        ; X = x = $FF
+    ldx #0          ; X = x = $0 - start with 0 - after dex, will wrap to $FF
 
 ; clear memory on system reset
 MemLoop:
