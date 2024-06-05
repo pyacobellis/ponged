@@ -7,7 +7,12 @@
 ; include utils
 ; include constants
 
+PPU_CTRL = $2000
 PPU_MASK = $2001
+PPU_STATUS = $2002
+OAM_ADDR = $2003
+OAM_DATA = $2004 
+PPU_SCROLL = $2005
 PPU_ADDR = $2006
 PPU_DATA = $2007
 
@@ -37,8 +42,16 @@ PPU_DATA = $2007
 RESET:
     sei             ; Disable all IRQ interupt requests - housekeeping on reset
     cld             ; clear decimal mode (unused) - - housekeeping on reset
+    ldx #$40
+    stx $4017
+    
     ldx #$FF
     txs             ; Initalize stack pointer at $01FF
+    inx             ; x is now 0  
+    stx PPU_CTRL  ; disable NMI
+    stx PPU_MASK  ; disable rendering
+    stx $4010      ; disable DMC IRQs
+
 
     lda #0          ; A = 0
     ldx #0          ; X = x = $0 - start with 0 - after dex, will wrap to $FF
@@ -50,6 +63,19 @@ MemLoop:
     bne MemLoop    ; If X is not zero, loop back to MemLoop label
 
 ;TODO: clear all memory, not just Zero Page
+
+$80, 
+    lda #0
+ClearRAM:
+    sta $000, x
+    sta $100, x
+    sta $200, x
+    sta $300, x
+    sta $400, x
+    sta $500, x
+    sta $600, x
+    sta $700, x
+    sta $800, x    
 
 Main:
     ldx #$3F
