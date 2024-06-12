@@ -8,16 +8,19 @@
 .include "constants.inc"
 .include "header.inc"
 .include "reset.inc"
+.include "utils.inc"
 
-
-; include macros
-; include 
+.segment "ZEROPAGE"
+Frame:    .res 1
+Clock60:  .res 1
+BgPtr:    .res 2
 
 
 
 .segment "CODE"
 
 .proc LoadPalette
+    PPU_SETADDR $3F00
     ldy #0
 :   lda PaletteData, y
     sta PPU_DATA          ; Set value to send to PPU_DATA
@@ -27,49 +30,89 @@
     rts
 .endproc
 
-
-.proc LoadBackground
-    ldy #0
-:   lda BackgroundData, y
-    sta PPU_DATA          ; Set value to send to PPU_DATA
-    iny 
-    cpy #255
-    bne :-
+.proc LoadSprites
+    ldx #0
+LoadSprites:
+    lda SpriteData,x
+    sta $0200,x
+    inx 
+    cpx #16
+    bne LoadSprites
     rts
 .endproc
+
+
+.proc LoadBackground
+    lda #<BackgroundData
+    sta BgPtr
+    lda #>BackgroundData
+    sta BgPtr+1
+
+    PPU_SETADDR $2000
+
+    ldx #$00
+    ldy #$00
+
+    OuterLoop:
+    InnerLoop:
+        lda (BgPtr),y            ; Fetch the value *pointed* by BgPtr + Y
+        sta PPU_DATA             ; Store in the PPU data
+        iny                      ; Y++
+        cpy #0                   ; If Y == 0 (wrapped around 256 times)?
+        beq IncreaseHiByte       ;   Then: we need to increase the hi-byte
+        jmp InnerLoop            ;   Else: Continue with the inner loop
+    IncreaseHiByte:
+        inc BgPtr+1              ; We increment the hi-byte pointer to point to the next background section (next 255-chunk)
+        inx                      ; X++
+        cpx #4                   ; Compare X with #4
+        bne OuterLoop            ;   If X is still not 4, then we keep looping back to the outer loop
+
+        rts                      ; Return from subroutine
+.endproc
+
+.proc LoadAttributes
+    PPU_SETADDR $23C0
+    ldy #0
+:   lda AttributeData,y
+    sta PPU_DATA
+    iny
+    cpy #16
+    bne :-
+    rts
+.endproc    
+
 
 RESET:
    INIT_NES      ; call initialisation macro from reset.inc
                  ; includes memory clear, vblank waits, etc.
 
-Main:
-    bit PPU_STATUS  ; Reset latch of PPU_ADDR  to hi-byte 
-    ldx #$3F
-    stx PPU_ADDR  ; Set hi-byte of PPU_ADDR to $3F
-    ldx #$00
-    stx PPU_ADDR ; Set low-bit of PPU_ADDR to $00
-    
-    ldy #0
+InitVariables:
+    lda #0
+    sta Frame
+
+
+    Main:
 
     jsr LoadPalette
-
-
-    bit PPU_STATUS  ; Reset latch of PPU_ADDR  to hi-byte 
-    ldx #$3F
-    stx PPU_ADDR  ; Set hi-byte of PPU_ADDR to $3F
-    ldx #$00
-    stx PPU_ADDR ; Set low-bit of PPU_ADDR to $00
-    
     jsr LoadBackground
-
+    jsr LoadAttributes
+    jsr LoadSprites
+    
+EnablePPURendering:
+    lda #%10000000
+    sta PPU_CTRL
+    lda #0
+    sta PPU_SCROLL
+    sta PPU_SCROLL
     lda #%00011110
-    sta PPU_MASK        ; Set PPU_MASK bits to show background
-
+    sta PPU_MASK
 
 LoopForever:
     jmp LoopForever
 
 NMI:
+    lda #$02    ; Each NMI, we copy sprite data from $02** to 
+    sta $4014   ;  Start OAM DMA copy by writing to register 
     rti   ; rti = Return From Interupt
 IRQ:
     rti
@@ -77,22 +120,46 @@ IRQ:
 
 ; GRAPHICS DATA
 PaletteData:
-.byte $0f,$00,$10,$04, $0f,$0c,$21,$21, $0f,$05,$16,$24, $0f,$0b,$1a,$29 ; Background
-.byte $0f,$00,$10,$04, $0f,$0c,$21,$21, $0f,$05,$16,$24, $0f,$0b,$1a,$29 ; Sprite
+.byte $0f,$2c,$14,$15, $0f,$0c,$21,$32, $0f,$05,$16,$27, $0f,$0b,$1a,$29
+.byte $0f,$1c,$21,$32, $0f,$11,$22,$33, $0f,$12,$23,$34, $0f,$13,$24,$35
+
 
 BackgroundData:
-.byte $24,$24,$24,$24,$24,$24,$24,$24,$24,$36,$37,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24
-.byte $24,$24,$24,$24,$24,$24,$24,$24,$35,$25,$25,$38,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$60,$61,$62,$63,$24,$24,$24,$24
-.byte $24,$36,$37,$24,$24,$24,$24,$24,$39,$3a,$3b,$3c,$24,$24,$24,$24,$53,$54,$24,$24,$24,$24,$24,$24,$64,$65,$66,$67,$24,$24,$24,$24
-.byte $35,$25,$25,$38,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$24,$55,$56,$24,$24,$24,$24,$24,$24,$68,$69,$26,$6a,$24,$24,$24,$24
-.byte $45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45,$45
-.byte $47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47
-.byte $47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47,$47
-.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+.incbin "pong_nametab.nam"
+    ; .byte $01,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$03
+	; .byte $11,$46,$55,$55,$55,$55,$55,$55,$12,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
+	; .byte $11,$46,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
+	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
+	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
+	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
+	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$12,$12,$12,$12,$12,$12,$55,$55,$11
+	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$12,$12,$12,$12,$55,$55,$55,$55,$55,$55,$55,$55,$55,$12,$12,$12,$12,$55,$11
+
+AttributeData:
+.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
+.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
+.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
+.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
+.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
+.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
+.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
+.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
+
+SpriteData:
+;           Y     tile#    attribs      X
+.byte     16,     $04,    %00000000,   $18
+.byte     24,     $10,    %00000000,   $18
+.byte     32,     $10,    %00000000,   $18
+.byte     40,     $04,    %10000000,   $18
+.byte     16,     $04,    %00000000,   24
+.byte     24,     $10,    %00000000,   24
+.byte     32,     $10,    %00000000,   24
+.byte     40,     $04,    %01000000,   24
+
 
 ; CHR-ROM Data
 .segment "CHARS"
-.incbin "pong_bkgrd.chr"
+.incbin "ponged.chr"
 
 .segment "VECTORS" ; 6502 always need to go here when it gets powered on
 ;.org $FFFA        ; each vector is 16-bits.  So $FFFA + (16 x 3 bits) = $FFFF, the end of our PRG-ROM, end of the cartridge

@@ -2,10 +2,12 @@
 
 .segment "HEADER"
 
+.segment "ZEROPAGE"
 
 
 .segment "CODE"
 
+.segment "CHARS"
 
 .segment "VECTORS"
 

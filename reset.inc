@@ -45,6 +45,11 @@ ClearRAM:
     inx
     bne ClearRAM
 
+    lda #$FF
+    :   sta OAM_RAM,x
+        inx
+        bne :-
+
 VblankWait2:
     bit PPU_STATUS       ; checks sign, if pos, in continue loop
     bpl VblankWait2   ; if neg (VblankWait), exit loop
