@@ -160,8 +160,8 @@ UpdateSpritePosition:   ; use this to update the sprite position
     sta $020B ; Set the 3rd sprite X position to be XPos
     ;clc
     ;adc #8
-    sta $0207  ; Set the 2nd sprite X position to be XPos + 8
-    sta $020F  ; Set the 4th sprite X position to be XPos + 8
+    sta $0207  ; Set the 2nd sprite X position to be XPos
+    sta $020F  ; Set the 4th sprite X position to be XPos
    
     lda YPos
     sta $0200      ; Set the 1st sprite Y position to be YPos
