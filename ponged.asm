@@ -11,6 +11,9 @@
 .include "utils.inc"
 
 .segment "ZEROPAGE"
+Buttons:  .res 1
+XPos:     .res 1
+YPos:     .res 1
 Frame:    .res 1
 Clock60:  .res 1
 BgPtr:    .res 2
@@ -18,6 +21,22 @@ BgPtr:    .res 2
 
 
 .segment "CODE"
+
+.proc ReadControllers
+    lda #1              ; A = 1
+    sta Buttons         ; Buttons (in Zero Page) = 1 
+    sta $4016           ; Set Latch = 1 to begin 'Input' collection mode
+    lsr                 ; Set A = 0, shift A (currently %00000001) one to the right, making A %00000000.  Faster than lda #0.
+    sta $4016           ; Set Latch = 0 to begin 'Output Mode'
+LoopButtons:
+    lda $4016           ; This reads a bit from the controller data line and inverts its value
+                        ; And also send a signal to teh Clock line to shift the bits
+    
+    lsr                 ; We shift-right to place that 1-bit we just read in the Carry Flag
+    rol Buttons         ; Rotate bits left, placign the Carry value into the first bit of 'Buttons' in RAM
+    bcc LoopButtons     ; Loop until Carry is set (from the initial 1 we loaded inside Buttons)
+    rts
+.endproc
 
 .proc LoadPalette
     PPU_SETADDR $3F00
@@ -90,6 +109,12 @@ InitVariables:
     lda #0
     sta Frame
 
+    ldx #0
+    lda SpriteData,x
+    sta YPos
+    ldx #3
+    lda SpriteData,x
+    sta XPos
 
     Main:
 
@@ -113,6 +138,52 @@ LoopForever:
 NMI:
     lda #$02    ; Each NMI, we copy sprite data from $02** to 
     sta $4014   ;  Start OAM DMA copy by writing to register 
+
+    jsr ReadControllers
+
+CheckDownButton:
+    lda Buttons
+    and #%00000100
+    beq CheckUpButton
+    inc YPos
+
+CheckUpButton:
+    lda Buttons
+    and #%00001000
+    beq :+        ; if not =0, branch to outside this label
+    dec YPos
+:
+
+UpdateSpritePosition:   ; use this to update the sprite position
+    lda XPos
+    sta $0203 ; Set the 1st sprite X position to be XPos (connect positino to XPos)
+    sta $020B ; Set the 3rd sprite X position to be XPos
+    ;clc
+    ;adc #8
+    sta $0207  ; Set the 2nd sprite X position to be XPos + 8
+    sta $020F  ; Set the 4th sprite X position to be XPos + 8
+   
+    lda YPos
+    sta $0200      ; Set the 1st sprite Y position to be YPos
+    clc
+    adc #8   
+    sta $0204     ; Set the 2nd sprite Y position to be YPos
+    clc
+    adc #8         
+    sta $0208     ; Set the 3rd sprite Y position to be YPos + 16
+    clc
+    adc #8    
+    sta $020C     ; Set the 4th sprite Y position to be YPos + 24
+
+    lda Frame                ; Increment Clock60 every time we reach 60 frames (NTSC = 60Hz)
+    cmp #60                  ; Is Frame equal to #60?
+    bne :+                   ; If not, bypass Clock60 increment
+    inc Clock60              ; But if it is 60, then increment Clock60 and zero Frame counter
+    lda #0
+    sta Frame
+:
+
+
     rti   ; rti = Return From Interupt
 IRQ:
     rti
@@ -127,14 +198,6 @@ PaletteData:
 
 BackgroundData:
 .incbin "pong_nametab.nam"
-    ; .byte $01,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$02,$03
-	; .byte $11,$46,$55,$55,$55,$55,$55,$55,$12,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
-	; .byte $11,$46,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
-	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
-	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
-	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$11
-	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$12,$12,$12,$12,$12,$12,$55,$55,$11
-	; .byte $11,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$55,$12,$12,$12,$12,$55,$55,$55,$55,$55,$55,$55,$55,$55,$12,$12,$12,$12,$55,$11
 
 AttributeData:
 .byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
