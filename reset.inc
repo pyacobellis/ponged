@@ -1,4 +1,5 @@
-This code will run whenever the game (ROM) is turned on or reset.
+
+;This code will run whenever the game (ROM) is turned on or reset.
 
 
 .macro INIT_NES
