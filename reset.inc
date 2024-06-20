@@ -1,3 +1,7 @@
+
+;This code will run whenever the game (ROM) is turned on or reset.
+
+
 .macro INIT_NES
     sei             ; Disable all IRQ interupt requests - housekeeping on reset
     cld             ; clear decimal mode (unused) - - housekeeping on reset
@@ -11,9 +15,6 @@
     
     lda #$40
     sta $4017
-    
-     
-
 
     lda #0          ; A = 0
     ldx #0          ; X = x = $0 - start with 0 - after dex, will wrap to $FF

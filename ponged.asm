@@ -116,7 +116,7 @@ InitVariables:
     lda SpriteData,x
     sta XPos
 
-    Main:
+Main:
 
     jsr LoadPalette
     jsr LoadBackground
@@ -143,13 +143,13 @@ NMI:
 
 CheckDownButton:
     lda Buttons
-    and #%00000100
+    and #BUTTON_DOWN
     beq CheckUpButton
     inc YPos
 
 CheckUpButton:
     lda Buttons
-    and #%00001000
+    and #BUTTON_UP
     beq :+        ; if not =0, branch to outside this label
     dec YPos
 :
