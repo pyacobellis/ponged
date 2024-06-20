@@ -116,7 +116,7 @@ InitVariables:
     lda SpriteData,x
     sta XPos
 
-    Main:
+Main:
 
     jsr LoadPalette
     jsr LoadBackground
