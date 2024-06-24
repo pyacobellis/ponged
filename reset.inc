@@ -1,6 +1,6 @@
-
-;This code will run whenever the game (ROM) is turned on or reset.
-
+; RESET
+; This code will run whenever the game (ROM) is turned on or reset.
+; Runs under RESET label, using INIT_NES macro below.
 
 .macro INIT_NES
     sei             ; Disable all IRQ interupt requests - housekeeping on reset
